@@ -1,47 +1,49 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import "./App.css";
-
-const initialItems = [
-  {
-    id: 1,
-    type: "Lost",
-    name: "Black Wallet",
-    category: "Personal",
-    location: "Library Block",
-    date: "2026-09-15",
-    description: "Black leather wallet found missing near the library entrance.",
-    status: "Lost",
-    reporter: {
-      name: "Arun Kumar",
-      phone: "9876543210",
-      email: "arun@example.com",
-    },
-  },
-  {
-    id: 2,
-    type: "Found",
-    name: "Blue Water Bottle",
-    category: "Accessories",
-    location: "CSE Block",
-    date: "2026-09-16",
-    description: "Blue insulated bottle found near the first-floor classroom.",
-    status: "Found",
-    reporter: {
-      name: "Meena S",
-      phone: "9876501234",
-      email: "meena@example.com",
-    },
-  },
-];
+const API_URL = "http://localhost:5000/api/items";
+  
 
 function App() {
-  const [items, setItems] = useState(initialItems);
+  const [items, setItems] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedItem, setSelectedItem] = useState(null);
   const [showReport, setShowReport] = useState(false);
   const [message, setMessage] = useState("");
+  useEffect(() => {
+  const loadItems = async () => {
+    try {
+      const response = await fetch(API_URL);
+      const data = await response.json();
+
+      if (data.success) {
+        const formattedItems = data.items.map((item) => ({
+          id: item._id,
+          type: item.type === "lost" ? "Lost" : "Found",
+          name: item.itemName,
+          category: item.category,
+          location: item.location,
+          date: item.date,
+          description: item.description,
+          status: item.status,
+          reporter: {
+            name: item.reporterName,
+            phone: item.reporterPhone,
+            email: item.reporterEmail,
+          },
+        }));
+
+        setItems(formattedItems);
+      }
+    } catch (error) {
+      setMessage("Unable to connect to server.");
+      console.error(error);
+    }
+  };
+
+  loadItems();
+}, []);
 
   const [form, setForm] = useState({
     type: "Lost",
@@ -76,37 +78,65 @@ function App() {
     });
   };
 
-  const submitReport = (e) => {
-    e.preventDefault();
+ const submitReport = async (e) => {
+  e.preventDefault();
 
-    if (
-      !form.name ||
-      !form.location ||
-      !form.date ||
-      !form.reporterName ||
-      !form.phone
-    ) {
-      setMessage("Please fill all required fields.");
+  if (
+    !form.name ||
+    !form.location ||
+    !form.date ||
+    !form.reporterName ||
+    !form.phone
+  ) {
+    setMessage("Please fill all required fields.");
+    return;
+  }
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        type: form.type.toLowerCase(),
+        itemName: form.name,
+        category: form.category,
+        location: form.location,
+        date: form.date,
+        description: form.description,
+        reporterName: form.reporterName,
+        reporterPhone: form.phone,
+        reporterEmail: form.email,
+        storageLocation: "Student Affairs Lost & Found Desk",
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      setMessage(data.message || "Failed to submit report.");
       return;
     }
 
-    const newItem = {
-      id: Date.now(),
-      type: form.type,
-      name: form.name,
-      category: form.category,
-      location: form.location,
-      date: form.date,
-      description: form.description,
-      status: form.type,
+    const savedItem = {
+      id: data.item._id,
+      type: data.item.type === "lost" ? "Lost" : "Found",
+      name: data.item.itemName,
+      category: data.item.category,
+      location: data.item.location,
+      date: data.item.date,
+      description: data.item.description,
+      status: data.item.status,
       reporter: {
-        name: form.reporterName,
-        phone: form.phone,
-        email: form.email,
+        name: data.item.reporterName,
+        phone: data.item.reporterPhone,
+        email: data.item.reporterEmail,
       },
     };
 
-    setItems([newItem, ...items]);
+    setItems((currentItems) => [savedItem, ...currentItems]);
+
     setForm({
       type: "Lost",
       name: "",
@@ -122,7 +152,11 @@ function App() {
     setMessage("Report submitted successfully!");
     setShowReport(false);
     setActiveTab("items");
-  };
+  } catch (error) {
+    console.error(error);
+    setMessage("Unable to connect to server.");
+  }
+};
 
   const openClaim = (item) => {
     setSelectedItem(item);
