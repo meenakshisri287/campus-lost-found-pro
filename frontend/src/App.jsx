@@ -6,6 +6,18 @@ const API_URL = "http://localhost:5000/api/items";
 function App() {
   const [items, setItems] = useState([]);
   const [activeTab, setActiveTab] = useState("home");
+  useEffect(() => {
+  fetch(API_URL)
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.items) {
+        setItems(data.items);
+      }
+    })
+    .catch((error) => {
+      console.error("Failed to load items:", error);
+    });
+}, []);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("All");
   const [selectedItem, setSelectedItem] = useState(null);
@@ -20,6 +32,7 @@ function App() {
       if (data.success) {
         const formattedItems = data.items.map((item) => ({
           id: item._id,
+          _id: item._id,
           type: item.type === "lost" ? "Lost" : "Found",
           name: item.itemName,
           category: item.category,
@@ -58,18 +71,28 @@ function App() {
   });
 
   const filteredItems = useMemo(() => {
-    return items.filter((item) => {
-      const matchesSearch =
-        item.name.toLowerCase().includes(search.toLowerCase()) ||
-        item.category.toLowerCase().includes(search.toLowerCase()) ||
-        item.location.toLowerCase().includes(search.toLowerCase());
+  return items.filter((item) => {
+    const itemName = item.itemName || item.name || "";
+    const category = item.category || "";
+    const location = item.location || "";
+    const itemType =
+      item.type === "found"
+        ? "Found"
+        : item.type === "lost"
+        ? "Lost"
+        : item.type || "";
 
-      const matchesFilter =
-        filter === "All" || item.type === filter;
+    const matchesSearch =
+      itemName.toLowerCase().includes(search.toLowerCase()) ||
+      category.toLowerCase().includes(search.toLowerCase()) ||
+      location.toLowerCase().includes(search.toLowerCase());
 
-      return matchesSearch && matchesFilter;
-    });
-  }, [items, search, filter]);
+    const matchesFilter =
+      filter === "All" || itemType === filter;
+
+    return matchesSearch && matchesFilter;
+  });
+}, [items, search, filter]);
 
   const updateForm = (e) => {
     setForm({
@@ -121,6 +144,7 @@ function App() {
 
     const savedItem = {
       id: data.item._id,
+      _id: data.item._id,
       type: data.item.type === "lost" ? "Lost" : "Found",
       name: data.item.itemName,
       category: data.item.category,
@@ -165,6 +189,63 @@ function App() {
   const closeClaim = () => {
     setSelectedItem(null);
   };
+  const updateItemStatus = async (itemId, newStatus) => {
+  try {
+    const response = await fetch(`${API_URL}/${itemId}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        status: newStatus,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      setItems((currentItems) =>
+        currentItems.map((item) =>
+          item._id === itemId
+            ? { ...item, status: newStatus }
+            : item
+        )
+      );
+
+      setSelectedItem((currentItem) =>
+        currentItem
+          ? { ...currentItem, status: newStatus }
+          : currentItem
+      );
+
+      setMessage("Item status updated successfully!");
+    }
+  } catch (error) {
+    console.error("Failed to update item:", error);
+    setMessage("Failed to update item status.");
+  }
+};
+const deleteItem = async (itemId) => {
+  try {
+    const response = await fetch(`${API_URL}/${itemId}`, {
+      method: "DELETE",
+    });
+
+    const data = await response.json();
+
+    if (data.success) {
+      setItems((currentItems) =>
+        currentItems.filter((item) => item._id !== itemId)
+      );
+
+      setSelectedItem(null);
+      setMessage("Item deleted successfully!");
+    }
+  } catch (error) {
+    console.error("Failed to delete item:", error);
+    setMessage("Failed to delete item.");
+  }
+};
 
   return (
     <div className="app">
@@ -758,8 +839,26 @@ function App() {
                   If this is your item, contact the reporter or
                   authorized campus staff for verification.
                 </p>
-                <button className="contact-btn">
+                {selectedItem.status !== "stored" && 
+                (
+                  <button
+                    className="contact-btn"
+                    onClick={() => updateItemStatus(selectedItem._id, "stored")}
+                  >
+                   📦 Mark as Stored
+                  </button>
+                )}
+                <a
+                  className="contact-btn"
+                  href={`tel:${selectedItem.reporterPhone || selectedItem.reporter?.phone || ""}`}
+                >
                   📞 Contact Reporter
+                </a>
+                <button
+                  className="delete-btn"
+                  onClick={() => deleteItem(selectedItem._id)}
+                >
+                  🗑️ Delete Item
                 </button>
               </div>
 

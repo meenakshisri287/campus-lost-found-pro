@@ -1106,3 +1106,14 @@ footer {
     font-size: 21px;
   }
 }
+.owner-box {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.owner-box .contact-btn {
+  position: static;
+  width: 100%;
+  margin: 0;
+}
